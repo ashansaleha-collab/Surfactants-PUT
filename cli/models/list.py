@@ -2,7 +2,11 @@ from . import Model
 from .dummy import AvgBaselineModel, DummyModel
 from .sk import create_knn_baseline_model
 from .sk_impls import create_lgbm_model, create_random_forest_model
-from .transformer import TransformerModel
+
+
+def _create_transformer_model(params: dict[str, str]) -> Model:
+    from .transformer import TransformerModel
+    return TransformerModel(params)
 
 
 def models():
@@ -12,7 +16,7 @@ def models():
         "knn": create_knn_baseline_model,
         "lgbm": create_lgbm_model,
         "rf": create_random_forest_model,
-        "transformer": TransformerModel,
+        "transformer": _create_transformer_model,
     }
 
 

@@ -48,13 +48,18 @@ surfactants/
 
 ## Requirements
 
-- Python 3.13 (developed and tested on 3.13.13)
+- Python 3.13 (developed and tested on 3.13.13; the LGBM and Random Forest models work on Python 3.11+)
+- The transformer model (`--model transformer`) requires `torch` and `transformers` to be installed
+  separately and was originally developed with `transformers==4.46.3` on Python 3.11. Newer versions
+  of `transformers` (5.x) may require additional dependencies (e.g. `torchvision`) and are not
+  currently supported for the transformer model. Everything apart from the transformer model works
+  on newer Python and library versions.
 - ~2 GB of disk space if you use the MoLFormer-based models (the checkpoint is downloaded on first use)
 - A GPU is optional; it is used automatically for the transformer models if available
 
 ```bash
-git clone https://github.com/sppmacd/surfactants.git
-cd surfactants
+git clone https://github.com/ashansaleha-collab/Surfactants-PUT.git
+cd Surfactants-PUT
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
@@ -96,19 +101,16 @@ All models use `random_state=42`; cross-validation is 5-fold. Reported numbers a
 
 ## Data
 
-All data files live in `sources/`. The target is pCMC = −log₁₀(CMC), CMC in mol/L.
+All data files live in `sources/`. The target is pCMC = -log10(CMC), CMC in mol/L.
 
-| File                              | Rows  | Description                                                                                                                                                                                                                    |
-| --------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CMC_surfactants_v2_4.csv`        | 3,260 | Expert-curated dataset: literature records standardised to canonical SMILES with head/tail annotations, surfactant class, molecular weight, additive, additive concentration, and temperature.                                   |
-| `CMC_surfactants_database_v2.csv` | 3,042 | Earlier version of the same table, used by the transformer scripts.                                                                                                                                                             |
-| `Data_paper_1.csv`                | 779   | Records from Chen et al. (2024).                                                                                                                                                                                               |
-| `Data_paper_4.csv`                | 218   | Records from Brozos et al. (2024); note the target here is `log CMC (uM)`, converted on load.                                                                                                                                  |
-| `lab.csv`                         | 77    | **External validation dataset:** 77 newly measured CMC values for 16 surfactants not present in the training data, used for Fig. 3 and Table III in the paper.                                                                  |
+| File                       | Rows  | Description                                                                                                                                                                                                                    |
+| -------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CMC_surfactants_v2_4.csv` | 3,260 | Expert-curated dataset: literature records standardised to canonical SMILES with head/tail annotations, surfactant class, molecular weight, additive, additive concentration, and temperature. Aggregates to 2,400 rows.        |
+| `Data_paper_1.csv`         | 779   | Records from Chen et al. (2024).                                                                                                                                                                                               |
+| `Data_paper_4.csv`         | 218   | Records from Brozos et al. (2024); note the target here is `log CMC (uM)`, converted on load.                                                                                                                                  |
+| `lab.csv`                  | 77    | **External validation dataset:** 77 newly measured CMC values for 16 surfactants not present in the training data, used for Fig. 3 and Table III in the paper.                                                                  |
 
-### How the 3,133 curated training records are obtained
-
-The paper reports **3,133 curated records for 1,871 distinct surfactants**. This count is the result of merging the expert dataset with the two literature datasets and applying preprocessing and de-duplication through the CLI pipeline:
+### How the training records are obtained
 
 1. **Expert dataset** (`CMC_surfactants_v2_4.csv`, 3,260 raw rows) is loaded by the `expert` loader, which:
    - Drops rows with missing tail carbon number, molecular weight, or surfactant type (−260 rows)
@@ -119,9 +121,9 @@ The paper reports **3,133 curated records for 1,871 distinct surfactants**. This
 
 3. **Paper 4** (`Data_paper_4.csv`, 218 rows) is loaded by the `paper4` loader as-is (218 rows).
 
-4. The `everything` dataset concatenates all three: **2,400 + 779 + 218 = 3,397 rows**.
+4. The `everything` dataset concatenates all three and deduplicates: **2,400 + 779 + 218 = 3,397 raw rows**, aggregating to **3,272 rows**.
 
-The **3,133** figure in the paper likely reflects a slightly different version of the expert CSV used during an earlier stage of the project (possibly before some late-stage rows were added), or a different aggregation threshold. The current code produces 3,397 records with `--train everything`. To reproduce the exact paper numbers, use the expert+paper1+paper4 combination without the `_dedup` flag.
+5. The `lab` dataset (`lab.csv`, 77 rows) is used as a held-out external validation set and is **not** included in the training data.
 
 ## Command-line interface
 
