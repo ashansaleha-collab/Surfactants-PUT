@@ -10,17 +10,7 @@ from .sk import SklearnModel
 
 
 def inplace_one_hot_encode(df: pd.DataFrame, column: str) -> list[str]:
-    if isinstance(df[column].dtype, pd.CategoricalDtype):
-        categories = df[column].cat.categories.tolist()
-        df[column] = df[column].astype(str)
-    else:
-        categories = None
     one_hot = pd.get_dummies(df[column], prefix=column, dummy_na=True)
-    if categories is not None:
-        for cat in categories:
-            col_name = f"{column}_{cat}"
-            if col_name not in one_hot.columns:
-                one_hot[col_name] = 0
     df.drop(column, axis=1, inplace=True)
     df[one_hot.columns] = one_hot
     return one_hot.columns.tolist()

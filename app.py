@@ -17,35 +17,6 @@ MODEL_FILE = APP_DIR / "lgbm-2026-01-08.pkl"
 HISTORY_FILE = APP_DIR / "prediction_history.csv"
 
 
-def _patched_dataset_setup(df: pd.DataFrame) -> pd.DataFrame:
-    """Patched version of _initial_dataset_setup that works across pandas versions."""
-    feature_cols = df.columns.tolist()
-    if "surfactant_smiles" in feature_cols:
-        feature_cols.remove("surfactant_smiles")
-    if "additive_smiles" in feature_cols:
-        feature_cols.remove("additive_smiles")
-
-    if "surfactant_type" in feature_cols:
-        # Convert Categorical to plain strings to avoid pandas compatibility issues
-        if isinstance(df["surfactant_type"].dtype, pd.CategoricalDtype):
-            categories = df["surfactant_type"].cat.categories.tolist()
-            df["surfactant_type"] = df["surfactant_type"].astype(str)
-        else:
-            categories = None
-        one_hot = pd.get_dummies(df["surfactant_type"], prefix="surfactant_type", dummy_na=True)
-        if categories is not None:
-            for cat in categories:
-                col_name = f"surfactant_type_{cat}"
-                if col_name not in one_hot.columns:
-                    one_hot[col_name] = 0
-        df.drop("surfactant_type", axis=1, inplace=True)
-        df[one_hot.columns] = one_hot
-        feature_cols += one_hot.columns.tolist()
-        if "surfactant_type" in feature_cols:
-            feature_cols.remove("surfactant_type")
-
-    return df[feature_cols]
-
 
 # 2. HELPER FUNCTIONS
 @st.cache_resource
@@ -57,18 +28,6 @@ def load_model():
     except Exception as e:
         st.error(f"Failed to load model: {e}")
         return None
-
-    # Patch the preprocess FunctionTransformer to work across pandas versions
-    try:
-        from sklearn.preprocessing import FunctionTransformer
-        # model.model.model = ModelWrapper -> SklearnModel -> Pipeline
-        pipeline = model.model.model
-        if hasattr(pipeline, "named_steps") and "preprocess" in pipeline.named_steps:
-            pipeline.named_steps["preprocess"] = FunctionTransformer(
-                _patched_dataset_setup
-            )
-    except Exception:
-        pass
 
     return model
 
