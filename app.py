@@ -3,18 +3,18 @@ import pandas as pd
 import joblib
 import os
 import sys
+from pathlib import Path
 from datetime import datetime
 import uuid
 
-# 1. SETUP: Add current directory to path
-# This is crucial so the pickle loader can find the 'cli' module classes
-current_dir = os.getcwd()
-if current_dir not in sys.path:
-    sys.path.append(current_dir)
+# 1. SETUP: Add repo root to path so the pickle loader can find 'cli' module classes
+APP_DIR = Path(__file__).resolve().parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
 
 # File Constants
-MODEL_FILE = "lgbm-2026-01-08.pkl"
-HISTORY_FILE = "prediction_history.csv"
+MODEL_FILE = APP_DIR / "lgbm-2026-01-08.pkl"
+HISTORY_FILE = APP_DIR / "prediction_history.csv"
 
 # 2. HELPER FUNCTIONS
 @st.cache_resource
@@ -70,7 +70,7 @@ st.title("Surfactant pCMC Predictor")
 model = load_model()
 
 if not model:
-    st.error(f"Model file '{MODEL_FILE}' not found in {current_dir}")
+    st.error(f"Model file '{MODEL_FILE}' not found in {APP_DIR}")
     st.stop()
 
 # 4. TABS LAYOUT

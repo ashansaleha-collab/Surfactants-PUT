@@ -88,9 +88,9 @@ python -m cli predict --model lgbm --train everything \
 
 | Paper item                                             | Command                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Table I — feature-set ablation (RF)                    | `python -m cli cross_validate --model rf --train everything --features expert` — then repeat with `expert,maccs`, `expert,maccs,chen`, `expert,chen,physiochemicalproperties`, `expert,chen,avalon,bcut2d`, `expert,chen,avalon,bcut2d,physiochemicalproperties` |
-| Table II — model benchmark                             | `python -m cli cross_validate --model {lgbm,rf,transformer,knn} --train everything --features expert,chen,physiochemicalproperties`                                                                                                                              |
-| Fig. 3 — external validation on the laboratory dataset | `python -m cli train_test --model lgbm --train everything --test lab --features expert,chen,physiochemicalproperties --plot`                                                                                                                                     |
+| Table I -- feature-set ablation (RF)                    | `python -m cli cross_validate --model rf --train everything --features expert` -- then repeat with `expert,maccs`, `expert,maccs,chen`, `expert,chen,physiochemicalproperties`, `expert,chen,avalon,bcut2d`, `expert,chen,avalon,bcut2d,physiochemicalproperties` |
+| Table II -- model benchmark                             | `python -m cli cross_validate --model {lgbm,rf,transformer,knn} --train everything --features expert,chen,physiochemicalproperties`                                                                                                                              |
+| Fig. 3 -- external validation on the laboratory dataset | `python -m cli train_test --model lgbm --train everything --test lab --features expert,chen,physiochemicalproperties --plot`                                                                                                                                     |
 
 All models use `random_state=42`; cross-validation is 5-fold. Reported numbers are means over folds.
 
@@ -185,7 +185,7 @@ with a compatible environment (see `requirements.txt`) and from the repository r
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License -- see the [LICENSE](LICENSE) file for details.
 
 ## Data sources
 
