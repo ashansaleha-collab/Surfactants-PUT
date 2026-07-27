@@ -113,12 +113,20 @@ with tab1:
                 try:
                     # Prepare Dataframe matching your snippet exactly
                     input_data = pd.DataFrame(
-                        {
-                            "surfactant_smiles": pd.Series([surfactant_input], dtype="object"),
-                            "temperature": pd.Series([temperature_input], dtype="float64"),
-                            "additive_smiles": pd.Series([additive_input], dtype="object"),
-                            "additive_concentration": pd.Series([additive_conc_input], dtype="float64"),
-                        }
+                        [
+                            [
+                                surfactant_input,
+                                temperature_input,
+                                additive_input, # Passed as None if not selected
+                                additive_conc_input
+                            ],
+                        ],
+                        columns=[
+                            "surfactant_smiles",
+                            "temperature",
+                            "additive_smiles",
+                            "additive_concentration",
+                        ],
                     )
 
                     # Predict
