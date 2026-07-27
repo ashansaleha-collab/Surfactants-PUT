@@ -157,7 +157,9 @@ additive concentration are always appended to the feature vector.
 
 ## Web app
 
-![Project Logo](/images/streamlit_howto.png)
+
+![Project Logo](./images/streamlit_howto.png)
+
 ```bash
 streamlit run app.py
 ```
