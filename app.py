@@ -128,6 +128,9 @@ with tab1:
                             "additive_concentration",
                         ],
                     )
+                    # Force object dtype for string columns to satisfy typedframe schema
+                    for col in ["surfactant_smiles", "additive_smiles"]:
+                        input_data[col] = input_data[col].astype("object")
 
                     # Predict
                     prediction = model.predict(input_data)[0]
