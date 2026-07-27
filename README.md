@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="images/pp.svg" alt="Project Logo">
-</p>
-
 # Predicting Critical Micelle Concentration (CMC) of Surfactants Using Machine Learning
 Machine learning models that predict the critical micelle concentration (CMC) of surfactants from molecular structure and solution conditions (temperature, additive identity, and additive concentration). This repository contains the code, curated data, and trained model accompanying the paper *Conditional prediction and interpretation of surfactant CMC across molecular structure, temperature, and electrolyte environments* by Warbier-Wytykowska et al.
 
