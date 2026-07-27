@@ -11,8 +11,6 @@ lightgbm
 streamlit
 joblib
 plotly
-torch
-transformers
 tqdm
 typedframe
 openpyxl
