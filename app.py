@@ -16,16 +16,62 @@ if str(APP_DIR) not in sys.path:
 MODEL_FILE = APP_DIR / "lgbm-2026-01-08.pkl"
 HISTORY_FILE = APP_DIR / "prediction_history.csv"
 
+
+def _patched_dataset_setup(df: pd.DataFrame) -> pd.DataFrame:
+    """Patched version of _initial_dataset_setup that works across pandas versions."""
+    feature_cols = df.columns.tolist()
+    if "surfactant_smiles" in feature_cols:
+        feature_cols.remove("surfactant_smiles")
+    if "additive_smiles" in feature_cols:
+        feature_cols.remove("additive_smiles")
+
+    if "surfactant_type" in feature_cols:
+        # Convert Categorical to plain strings to avoid pandas compatibility issues
+        if isinstance(df["surfactant_type"].dtype, pd.CategoricalDtype):
+            categories = df["surfactant_type"].cat.categories.tolist()
+            df["surfactant_type"] = df["surfactant_type"].astype(str)
+        else:
+            categories = None
+        one_hot = pd.get_dummies(df["surfactant_type"], prefix="surfactant_type", dummy_na=True)
+        if categories is not None:
+            for cat in categories:
+                col_name = f"surfactant_type_{cat}"
+                if col_name not in one_hot.columns:
+                    one_hot[col_name] = 0
+        df.drop("surfactant_type", axis=1, inplace=True)
+        df[one_hot.columns] = one_hot
+        feature_cols += one_hot.columns.tolist()
+        if "surfactant_type" in feature_cols:
+            feature_cols.remove("surfactant_type")
+
+    return df[feature_cols]
+
+
 # 2. HELPER FUNCTIONS
 @st.cache_resource
 def load_model():
-    if os.path.exists(MODEL_FILE):
-        try:
-            return joblib.load(MODEL_FILE)
-        except Exception as e:
-            st.error(f"Failed to load model: {e}")
-            return None
-    return None
+    if not os.path.exists(MODEL_FILE):
+        return None
+    try:
+        model = joblib.load(MODEL_FILE)
+    except Exception as e:
+        st.error(f"Failed to load model: {e}")
+        return None
+
+    # Patch the preprocess FunctionTransformer to work across pandas versions
+    try:
+        from sklearn.preprocessing import FunctionTransformer
+        # model.model.model = ModelWrapper -> SklearnModel -> Pipeline
+        pipeline = model.model.model
+        if hasattr(pipeline, "named_steps") and "preprocess" in pipeline.named_steps:
+            pipeline.named_steps["preprocess"] = FunctionTransformer(
+                _patched_dataset_setup
+            )
+    except Exception:
+        pass
+
+    return model
+
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -87,12 +133,11 @@ with tab1:
             value="CCCCCCC/C=C\\CCCC(O)CCCC(=O)[O-].[K+]",
             height=100
         )
-        # UPDATED: Added format="%.6f" to prevent rounding in the input box
         temperature_input = st.number_input(
             "Temperature (°C)",
             value=55.0,
-            format="%.8f",  # Allows up to 6 decimal places
-            step=0.000001   # Allows fine-grained increments
+            format="%.8f",
+            step=0.000001
         )
 
     with col2:
@@ -111,13 +156,12 @@ with tab1:
         else:
             with st.spinner("Predicting..."):
                 try:
-                    # Prepare Dataframe matching your snippet exactly
                     input_data = pd.DataFrame(
                         [
                             [
                                 surfactant_input,
                                 temperature_input,
-                                additive_input, # Passed as None if not selected
+                                additive_input,
                                 additive_conc_input
                             ],
                         ],
@@ -132,10 +176,8 @@ with tab1:
                     for col in ["surfactant_smiles", "additive_smiles"]:
                         input_data[col] = input_data[col].astype("object")
 
-                    # Predict
                     prediction = model.predict(input_data)[0]
 
-                    # Display Results
                     st.success("Prediction Complete!")
                     res_col1, res_col2 = st.columns(2)
                     with res_col1:
@@ -144,7 +186,6 @@ with tab1:
                         cmc_molar = 10**(-prediction)
                         st.metric("Estimated CMC (M)", f"{cmc_molar:.6e}")
 
-                    # Log to History
                     add_to_history(
                         surfactant_input,
                         temperature_input,
@@ -168,21 +209,16 @@ with tab2:
     if history_df.empty:
         st.info("No history yet. Make a prediction in the first tab!")
     else:
-        # Use Data Editor to allow changes to 'Feedback' and 'Actual_pCMC'
-        # We disable editing for the input/result columns to preserve integrity
         edited_df = st.data_editor(
             history_df,
             column_config={
                 "ID": st.column_config.TextColumn(disabled=True),
                 "Timestamp": st.column_config.TextColumn(disabled=True),
                 "Surfactant": st.column_config.TextColumn(disabled=True, width="medium"),
-
-                # UPDATED: Added format="%.6f" to display full temperature precision in history
                 "Temperature": st.column_config.NumberColumn(
                     disabled=True,
                     format="%.6f"
                 ),
-
                 "Additive": st.column_config.TextColumn(disabled=True),
                 "Conc": st.column_config.NumberColumn(disabled=True),
                 "Predicted_pCMC": st.column_config.NumberColumn(disabled=True),
@@ -204,7 +240,6 @@ with tab2:
             num_rows="fixed"
         )
 
-        # Save button (Streamlit reruns on edit, but explicit save is clearer)
         if st.button("Save Feedback"):
             save_history(edited_df)
             st.success("Feedback updated successfully!")
