@@ -1,0 +1,3 @@
+ID,Timestamp,Surfactant,Temperature,Additive,Conc,Predicted_pCMC,Predicted_CMC_M,Feedback,Actual_pCMC
+b4b8d464,2026-01-08 17:27:49,CCCCCCCC[n+]1ccccc1.[Cl-],31.9552419354839,None,0.0,0.752,1.770287e-01,,
+a5245a84,2026-01-08 17:27:34,CCCCCOCCOCCOCCOCCOCCOCCO,31.9552419354839,,0.0,0.6,0.2511688,,
