@@ -1,50 +1,6 @@
 # Predicting Critical Micelle Concentration (CMC) of Surfactants Using Machine Learning
 Machine learning models that predict the critical micelle concentration (CMC) of surfactants from molecular structure and solution conditions (temperature, additive identity, and additive concentration). This repository contains the code, curated data, and trained model accompanying the paper *Conditional prediction and interpretation of surfactant CMC across molecular structure, temperature, and electrolyte environments* by Warbier-Wytykowska et al.
 
-## Repository Structure
-
-```
-surfactants/
-├── sources/                        # CSV datasets
-│   ├── CMC_surfactants_v2_4.csv          # Expert-curated dataset (3,260 rows)
-│   ├── CMC_surfactants_database_v2.csv   # Earlier version (used by transformer pipeline)
-│   ├── Data_paper_1.csv                  # Chen et al. (2024) records
-│   ├── Data_paper_4.csv                  # Brozos et al. (2024) records
-│   └── lab.csv                           # External validation: 77 measured CMC values for 16 surfactants
-│
-├── cli/                            # Main ML pipeline (sklearn-based)
-│   ├── __main__.py                       # CLI entry point
-│   ├── commands/                         # Subcommands: train_test, cross_validate, predict, profile, pca
-│   ├── datasets/                         # Dataset loaders (expert, paper1, paper4, lab, merged, example)
-│   ├── features/                         # Feature extractors (30+ fingerprint types, Chen descriptors, expert features)
-│   ├── models/                           # Model implementations (LGBM, Random Forest, KNN, Transformer, Dummy)
-│   ├── data.py                           # Typed DataFrame definitions
-│   ├── sample.py                         # Sample dataclass
-│   ├── storage.py                        # Model storage paths
-│   └── tools.py                          # Training, testing, cross-validation utilities
-│
-├── transformer/                    # Transformer-based pipeline (MoLFormer embeddings)
-│   ├── main.py                           # Base transformer training script
-│   ├── main_additives.py                 # Transformer with additive-aware features
-│   ├── model_base.py                     # CMCRegressor (MoLFormer + temperature)
-│   ├── model_additives.py                # CMCRegressorWithAdditives
-│   ├── trainer.py                        # Training loop with early stopping
-│   ├── normalize_df.py                   # Dataset loading and normalization
-│   ├── utils_data.py                     # Dataset classes, scalers, collate functions
-│   ├── utils_runtime.py                  # Reproducibility, device setup
-│   ├── plotting.py                       # Training curves and validation scatter plots
-│   └── processed_data/merged_data.csv    # Pre-merged dataset for transformer training
-│
-├── predictions/                    # Prediction results
-│   └── prediction_history.csv            # Logged predictions from the Streamlit app
-│
-├── app.py                          # Streamlit web app for interactive pCMC prediction
-├── lgbm-2026-01-08.pkl            # Pre-trained LGBM model (pickle)
-├── requirements.txt               # Python dependencies
-├── LICENSE                        # MIT License
-└── .gitignore
-```
-
 ## Requirements
 
 - Python 3.13 (developed and tested on 3.13.13; the LGBM and Random Forest models work on Python 3.11+)
@@ -107,7 +63,7 @@ All data files live in `sources/`. The target is pCMC = -log10(CMC), CMC in mol/
 | `CMC_surfactants_v2_4.csv` | 3,260 | Expert-curated dataset: literature records standardised to canonical SMILES with head/tail annotations, surfactant class, molecular weight, additive, additive concentration, and temperature. Aggregates to 2,400 rows.        |
 | `Data_paper_1.csv`         | 779   | Records from Chen et al. (2024).                                                                                                                                                                                               |
 | `Data_paper_4.csv`         | 218   | Records from Brozos et al. (2024); note the target here is `log CMC (uM)`, converted on load.                                                                                                                                  |
-| `lab.csv`                  | 77    | **External validation dataset:** 77 newly measured CMC values for 16 surfactants not present in the training data, used for Fig. 3 and Table III in the paper.                                                                  |
+| `lab.csv`                  | 85    | **External validation dataset:** 85 measured CMC values for 33 surfactants not present in the training data, used for Fig. 3 and Table III in the paper.                                                                        |
 
 ### How the training records are obtained
 
@@ -120,9 +76,9 @@ All data files live in `sources/`. The target is pCMC = -log10(CMC), CMC in mol/
 
 3. **Paper 4** (`Data_paper_4.csv`, 218 rows) is loaded by the `paper4` loader as-is (218 rows).
 
-4. The `everything` dataset concatenates all three and deduplicates: **2,400 + 779 + 218 = 3,397 raw rows**, aggregating to **3,272 rows**.
+4. The `everything` dataset concatenates all three and deduplicates: **2,400 + 779 + 218 = 3,397 raw rows**, aggregating to **3,272 rows** (3,133 with pCMC annotations, covering 1,871 unique surfactants).
 
-5. The `lab` dataset (`lab.csv`, 77 rows) is used as a held-out external validation set and is **not** included in the training data.
+5. The `lab` dataset (`lab.csv`, 85 rows) is used as a held-out external validation set and is **not** included in the training data.
 
 ## Command-line interface
 
