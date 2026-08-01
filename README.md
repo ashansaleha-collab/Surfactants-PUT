@@ -60,9 +60,9 @@ All data files live in `sources/`. The target is pCMC = -log10(CMC), CMC in mol/
 
 | File                       | Rows  | Description                                                                                                                                                                                                                    |
 | -------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `CMC_surfactants_v2_4.csv` | 3,260 | Expert-curated dataset: literature records standardised to canonical SMILES with head/tail annotations, surfactant class, molecular weight, additive, additive concentration, and temperature. Aggregates to 2,400 rows.        |
-| `Data_paper_1.csv`         | 779   | Records from Chen et al. (2024).                                                                                                                                                                                               |
-| `Data_paper_4.csv`         | 218   | Records from Brozos et al. (2024); note the target here is `log CMC (uM)`, converted on load.                                                                                                                                  |
+| `CMC_surfactants_v2_4.csv` | 3,260 | Expert-curated dataset: literature records standardised to canonical SMILES with head/tail annotations, surfactant class, molecular weight, additive, additive concentration, and temperature. Aggregates to 2,400 rows (2,260 with pCMC). |
+| `Data_paper_1.csv`         | 779   | Records from Chen et al. (2024), all with pCMC.                                                                                                                                                                                |
+| `Data_paper_4.csv`         | 218   | Records from Brozos et al. (2024), all with pCMC; note the target here is `log CMC (uM)`, converted on load.                                                                                                                   |
 | `lab.csv`                  | 85    | **External validation dataset:** 85 measured CMC values for 33 surfactants not present in the training data, used for Fig. 3 and Table III in the paper.                                                                        |
 
 ### How the training records are obtained
