@@ -101,9 +101,16 @@ class ExpertDataExtractor(FeatureExtractor):
             "cationic",
             "nonionic",
         ]
+        # NOTE: categories must stay object-dtype, NOT pandas 3 `str` dtype.
+        # typedframe rejects Categorical columns whose categories dtype is not
+        # object ("Categoricals must have str categories"), and get_dummies
+        # emits columns in category order -- which must match the order the
+        # pickled models were trained with. Do NOT simplify to plain strings:
+        # get_dummies would then sort alphabetically and silently misalign
+        # model features.
         df["surfactant_type"] = pd.Categorical(
             df["surfactant_type"],
-            categories=surfactant_types,
+            categories=pd.Index(surfactant_types, dtype=object),
         )
 
         return df

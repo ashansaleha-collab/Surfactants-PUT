@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import os
 import sys
+import traceback
 from pathlib import Path
 from datetime import datetime
 import uuid
@@ -48,6 +49,18 @@ def load_history():
 
 def save_history(df):
     df.to_csv(HISTORY_FILE, index=False)
+
+
+def show_error(prefix: str, e: Exception):
+    """User-friendly error + full traceback for troubleshooting.
+
+    The short message is what users report; the expander holds the exact
+    traceback to paste into a bug report.
+    """
+    st.error(f"{prefix}: {e}")
+    with st.expander("Show error details (copy this when reporting)"):
+        st.code(traceback.format_exc(), language="python")
+    st.info("Ensure 'cli' and dependencies (rdkit, typedframe) are installed.")
 
 def add_to_history(surfactant, temp, additive, conc, pred_pcmc):
     new_row = {
@@ -109,9 +122,10 @@ with tab1:
         else:
             st.markdown("**Temperature range (°C)**")
             t_lo, t_hi = st.slider(
-                "Select min and max",
+                "Temperature min and max (°C)",
                 min_value=0.0, max_value=100.0,
                 value=(20.0, 60.0), step=0.5,
+                key="temp_range",
             )
             temperature_input = (t_lo, t_hi)
             n_steps = st.number_input(
@@ -132,9 +146,10 @@ with tab1:
             else:
                 st.markdown("**Additive concentration range**")
                 c_lo, c_hi = st.slider(
-                    "Select min and max",
+                    "Concentration min and max",
                     min_value=0.0, max_value=1.0,
                     value=(0.0, 0.5), step=0.01,
+                    key="conc_range",
                 )
                 additive_conc_input = (c_lo, c_hi)
 
@@ -185,8 +200,7 @@ with tab1:
                         st.toast("Result saved to History!")
 
                     except Exception as e:
-                        st.error(f"Prediction failed: {str(e)}")
-                        st.info("Ensure 'cli' and dependencies (rdkit, typedframe) are installed.")
+                        show_error("Prediction failed", e)
     else:
         if st.button("Run Sweep", type="primary"):
             if not surfactant_input:
@@ -276,8 +290,7 @@ with tab1:
                             )
                             st.toast("Best row saved to History!")
                         except Exception as e:
-                            st.error(f"Sweep failed: {str(e)}")
-                            st.info("Ensure 'cli' and dependencies (rdkit, typedframe) are installed.")
+                            show_error("Sweep failed", e)
 
 # --- TAB 2: HISTORY & FEEDBACK ---
 with tab2:
