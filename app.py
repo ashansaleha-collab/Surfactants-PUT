@@ -27,6 +27,30 @@ TEMP_STEP = 0.5
 CONC_STEP = 0.01
 N_TOP_RESULTS = 10
 
+# Expected prediction error, measured via:
+#   python -m cli train_test --model lgbm --train everything --test everything
+#   --features expert,chen,physiochemicalproperties   (80/20 split, 623 test rows)
+# Result: test MAE 0.26, R² 0.87. Global average only -- the same band is
+# shown for every molecule, it does NOT adapt to the input.
+LGBM_TEST_MAE = 0.26
+# Training target range (pCMC over sources/*.csv spans -0.54…7.17),
+# rounded outward. Predictions outside it are extrapolation.
+TRAIN_PCMC_MIN = -1.0
+TRAIN_PCMC_MAX = 7.5
+
+
+def cmc_range(pred_pcmc: float, mae: float = LGBM_TEST_MAE) -> tuple[float, float]:
+    """(low, high) CMC bounds from pCMC ± MAE.
+
+    The interval is symmetric in pCMC, NOT in CMC -- always show both bounds,
+    never a symmetric "CMC ± x".
+    """
+    return 10 ** (-(pred_pcmc + mae)), 10 ** (-(pred_pcmc - mae))
+
+
+def outside_training_range(pred_pcmc: float) -> bool:
+    return pred_pcmc < TRAIN_PCMC_MIN or pred_pcmc > TRAIN_PCMC_MAX
+
 
 def sweep_axis(lo: float, hi: float, step: float) -> list[float]:
     """Every value in [lo, hi] at the given precision, endpoint included.
@@ -198,14 +222,29 @@ with tab1:
                             input_data[col] = input_data[col].astype("object")
 
                         prediction = model.predict(input_data)[0]
+                        cmc_lo, cmc_hi = cmc_range(prediction)
 
                         st.success("Prediction Complete!")
                         res_col1, res_col2 = st.columns(2)
                         with res_col1:
-                            st.metric("Predicted pCMC", f"{prediction:.4f}")
+                            st.metric(
+                                "Predicted pCMC",
+                                f"{prediction:.2f} ± {LGBM_TEST_MAE:.2f}",
+                            )
                         with res_col2:
                             cmc_molar = 10**(-prediction)
                             st.metric("Estimated CMC (M)", f"{cmc_molar:.6e}")
+                        st.caption(
+                            f"Expected interval (± test MAE {LGBM_TEST_MAE:.2f}, global average): "
+                            f"pCMC [{prediction - LGBM_TEST_MAE:.2f}, {prediction + LGBM_TEST_MAE:.2f}] "
+                            f"→ CMC [{cmc_lo:.3e}, {cmc_hi:.3e}] M."
+                        )
+                        if outside_training_range(prediction):
+                            st.warning(
+                                "Predicted pCMC is outside the training range "
+                                f"({TRAIN_PCMC_MIN:.1f}…{TRAIN_PCMC_MAX:.1f}) — "
+                                "extrapolation, treat with caution."
+                            )
 
                         add_to_history(
                             surfactant_input,
@@ -259,9 +298,13 @@ with tab1:
                         preds = model.predict(sweep_df)
                         sweep_df["predicted_pcmc"] = preds
                         sweep_df["predicted_cmc_M"] = [10 ** (-p) for p in preds]
+                        sweep_df["predicted_pcmc_lo"] = [p - LGBM_TEST_MAE for p in preds]
+                        sweep_df["predicted_pcmc_hi"] = [p + LGBM_TEST_MAE for p in preds]
 
                         best_idx = int(np.argmax(preds))
                         best = sweep_df.iloc[best_idx]
+                        best_pcmc = float(best["predicted_pcmc"])
+                        best_cmc_lo, best_cmc_hi = cmc_range(best_pcmc)
                         st.success("Sweep Complete — best = max pCMC (lowest CMC).")
                         b1, b2, b3, b4 = st.columns(4)
                         with b1:
@@ -269,9 +312,23 @@ with tab1:
                         with b2:
                             st.metric("Best Conc", f"{best['additive_concentration']:.6f}")
                         with b3:
-                            st.metric("Best pCMC", f"{best['predicted_pcmc']:.4f}")
+                            st.metric(
+                                "Best pCMC",
+                                f"{best_pcmc:.2f} ± {LGBM_TEST_MAE:.2f}",
+                            )
                         with b4:
                             st.metric("Best CMC (M)", f"{best['predicted_cmc_M']:.6e}")
+                        st.caption(
+                            f"Best interval (± test MAE {LGBM_TEST_MAE:.2f}, global average): "
+                            f"pCMC [{best_pcmc - LGBM_TEST_MAE:.2f}, {best_pcmc + LGBM_TEST_MAE:.2f}] "
+                            f"→ CMC [{best_cmc_lo:.3e}, {best_cmc_hi:.3e}] M."
+                        )
+                        if outside_training_range(best_pcmc):
+                            st.warning(
+                                "Best pCMC is outside the training range "
+                                f"({TRAIN_PCMC_MIN:.1f}…{TRAIN_PCMC_MAX:.1f}) — "
+                                "extrapolation, treat with caution."
+                            )
 
                         ranked = sweep_df.sort_values(
                             "predicted_pcmc", ascending=False
@@ -279,6 +336,10 @@ with tab1:
                         st.subheader(f"Top {N_TOP_RESULTS} conditions (ranked by pCMC)")
                         st.dataframe(
                             ranked.head(N_TOP_RESULTS), use_container_width=True
+                        )
+                        st.caption(
+                            f"predicted_pcmc_lo/hi = ± test MAE {LGBM_TEST_MAE:.2f} "
+                            "(global average from held-out 20%, same for every row)."
                         )
 
                         # Response curves through the optimum
