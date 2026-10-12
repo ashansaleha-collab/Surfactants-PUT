@@ -21,8 +21,8 @@ HISTORY_FILE = APP_DIR / "prediction_history.csv"
 
 # Sweep grid resolution (physical precisions agreed with the lab):
 # every 0.5 °C, every 0.01 concentration units. There is deliberately no
-# cell-count cap: the slider bounds (temp 0-100 °C, conc 0-1) cap the
-# ranges instead (worst case ~201 x 101 ≈ 20k predictions).
+# cell-count cap: the slider bounds (temp 0-100 °C, conc 0-2 M) cap the
+# ranges instead (worst case ~201 x 201 ≈ 40k predictions).
 TEMP_STEP = 0.5
 CONC_STEP = 0.01
 N_TOP_RESULTS = 10
@@ -162,8 +162,8 @@ with tab1:
             else:
                 st.markdown("**Additive concentration range**")
                 c_lo, c_hi = st.slider(
-                    "Concentration min and max",
-                    min_value=0.0, max_value=1.0,
+                    "Concentration min and max (M)",
+                    min_value=0.0, max_value=2.0,
                     value=(0.0, 0.5), step=0.01,
                     key="conc_range",
                 )
@@ -287,14 +287,18 @@ with tab1:
                             sweep_df["additive_concentration"] == best["additive_concentration"]
                         ].sort_values("temperature")
                         st.line_chart(
-                            at_best_conc.set_index("temperature")["predicted_pcmc"]
+                            at_best_conc.set_index("temperature")["predicted_pcmc"],
+                            x_label="Temperature (°C)",
+                            y_label="Predicted pCMC",
                         )
                         if has_additive:
                             at_best_temp = sweep_df[
                                 sweep_df["temperature"] == best["temperature"]
                             ].sort_values("additive_concentration")
                             st.line_chart(
-                                at_best_temp.set_index("additive_concentration")["predicted_pcmc"]
+                                at_best_temp.set_index("additive_concentration")["predicted_pcmc"],
+                                x_label="Additive concentration (M)",
+                                y_label="Predicted pCMC",
                             )
 
                         add_to_history(
