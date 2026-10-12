@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import itertools
 import joblib
 import os
 import sys
@@ -17,6 +18,24 @@ if str(APP_DIR) not in sys.path:
 # File Constants
 MODEL_FILE = APP_DIR / "lgbm-2026-01-08.pkl"
 HISTORY_FILE = APP_DIR / "prediction_history.csv"
+
+# Sweep grid resolution (physical precisions agreed with the lab):
+# every 0.5 °C, every 0.01 concentration units. There is deliberately no
+# cell-count cap: the slider bounds (temp 0-100 °C, conc 0-1) cap the
+# ranges instead (worst case ~201 x 101 ≈ 20k predictions).
+TEMP_STEP = 0.5
+CONC_STEP = 0.01
+N_TOP_RESULTS = 10
+
+
+def sweep_axis(lo: float, hi: float, step: float) -> list[float]:
+    """Every value in [lo, hi] at the given precision, endpoint included.
+
+    Rounds to the step's decimals so arange float dust (0.060000000004)
+    never leaks into the grid.
+    """
+    decimals = max(0, -int(np.floor(np.log10(step))))
+    return [round(float(v), decimals) for v in np.arange(lo, hi + step / 2, step)]
 
 
 
@@ -128,10 +147,7 @@ with tab1:
                 key="temp_range",
             )
             temperature_input = (t_lo, t_hi)
-            n_steps = st.number_input(
-                "Points per range (fixed step count)",
-                min_value=2, max_value=50, value=20, step=1,
-            )
+            st.caption(f"Sweep precision: every {TEMP_STEP} °C.")
 
     with col2:
         st.subheader("Additive (Optional)")
@@ -152,6 +168,7 @@ with tab1:
                     key="conc_range",
                 )
                 additive_conc_input = (c_lo, c_hi)
+                st.caption(f"Sweep precision: every {CONC_STEP}.")
 
     if mode == "Single point":
         if st.button("Run Prediction", type="primary"):
@@ -202,95 +219,94 @@ with tab1:
                     except Exception as e:
                         show_error("Prediction failed", e)
     else:
+        # Full enumeration at physical precision (sliders guarantee lo <= hi
+        # and conc >= 0, so no clamping needed). No cell cap: slider bounds
+        # are the caps.
+        t_lo, t_hi = temperature_input
+        temps = sweep_axis(t_lo, t_hi, TEMP_STEP)
+        if has_additive:
+            c_lo, c_hi = additive_conc_input
+            concs = sweep_axis(c_lo, c_hi, CONC_STEP)
+        else:
+            concs = [0.0]
+        st.info(
+            f"Sweep grid: {len(temps)} temperatures × {len(concs)} concentrations "
+            f"= {len(temps) * len(concs):,} predictions at one click."
+        )
+
         if st.button("Run Sweep", type="primary"):
-            if not surfactant_input:
+            if not surfactant_input.strip():
                 st.warning("Please enter a Surfactant SMILES string.")
             else:
-                t_lo, t_hi = temperature_input
-                if t_lo > t_hi:
-                    t_lo, t_hi = t_hi, t_lo
-                if has_additive:
-                    c_lo, c_hi = additive_conc_input
-                    if c_lo > c_hi:
-                        c_lo, c_hi = c_hi, c_lo
-                    if c_lo < 0:
-                        st.warning("Negative concentration clamped to 0.")
-                        c_lo = 0.0
-                    concs = np.linspace(c_lo, c_hi, num=int(n_steps))
-                else:
-                    concs = np.array([0.0])
-                temps = np.linspace(t_lo, t_hi, num=int(n_steps))
+                with st.spinner(f"Predicting {len(temps) * len(concs):,} grid points..."):
+                    try:
+                        rows = [
+                            [surfactant_input.strip(), t, additive_input, c]
+                            for t, c in itertools.product(temps, concs)
+                        ]
+                        sweep_df = pd.DataFrame(
+                            rows,
+                            columns=[
+                                "surfactant_smiles",
+                                "temperature",
+                                "additive_smiles",
+                                "additive_concentration",
+                            ],
+                        )
+                        for col in ["surfactant_smiles", "additive_smiles"]:
+                            sweep_df[col] = sweep_df[col].astype("object")
 
-                if len(temps) * len(concs) > 2500:
-                    st.error("Sweep grid too large (>2500 cells). Reduce points per range.")
-                else:
-                    with st.spinner(f"Predicting {len(temps) * len(concs)} grid points..."):
-                        try:
-                            rows = [
-                                [surfactant_input, float(t), additive_input, float(c)]
-                                for t in temps for c in concs
-                            ]
-                            sweep_df = pd.DataFrame(
-                                rows,
-                                columns=[
-                                    "surfactant_smiles",
-                                    "temperature",
-                                    "additive_smiles",
-                                    "additive_concentration",
-                                ],
-                            )
-                            for col in ["surfactant_smiles", "additive_smiles"]:
-                                sweep_df[col] = sweep_df[col].astype("object")
+                        preds = model.predict(sweep_df)
+                        sweep_df["predicted_pcmc"] = preds
+                        sweep_df["predicted_cmc_M"] = [10 ** (-p) for p in preds]
 
-                            preds = model.predict(sweep_df)
-                            sweep_df["predicted_pcmc"] = preds
-                            sweep_df["predicted_cmc_M"] = [10 ** (-p) for p in preds]
+                        best_idx = int(np.argmax(preds))
+                        best = sweep_df.iloc[best_idx]
+                        st.success("Sweep Complete — best = max pCMC (lowest CMC).")
+                        b1, b2, b3, b4 = st.columns(4)
+                        with b1:
+                            st.metric("Best Temp (°C)", f"{best['temperature']:.4f}")
+                        with b2:
+                            st.metric("Best Conc", f"{best['additive_concentration']:.6f}")
+                        with b3:
+                            st.metric("Best pCMC", f"{best['predicted_pcmc']:.4f}")
+                        with b4:
+                            st.metric("Best CMC (M)", f"{best['predicted_cmc_M']:.6e}")
 
-                            best_idx = int(np.argmax(preds))
-                            best = sweep_df.iloc[best_idx]
-                            st.success("Sweep Complete — best = max pCMC (lowest CMC).")
-                            b1, b2, b3, b4 = st.columns(4)
-                            with b1:
-                                st.metric("Best Temp (°C)", f"{best['temperature']:.4f}")
-                            with b2:
-                                st.metric("Best Conc", f"{best['additive_concentration']:.6f}")
-                            with b3:
-                                st.metric("Best pCMC", f"{best['predicted_pcmc']:.4f}")
-                            with b4:
-                                st.metric("Best CMC (M)", f"{best['predicted_cmc_M']:.6e}")
+                        ranked = sweep_df.sort_values(
+                            "predicted_pcmc", ascending=False
+                        ).reset_index(drop=True)
+                        st.subheader(f"Top {N_TOP_RESULTS} conditions (ranked by pCMC)")
+                        st.dataframe(
+                            ranked.head(N_TOP_RESULTS), use_container_width=True
+                        )
 
-                            ranked = sweep_df.sort_values(
-                                "predicted_pcmc", ascending=False
-                            ).reset_index(drop=True)
-                            st.subheader("Full sweep (ranked by pCMC)")
-                            st.dataframe(ranked, use_container_width=True)
-
-                            # Response curves through the optimum
-                            st.subheader("Response curves through optimum")
-                            at_best_conc = sweep_df[
-                                sweep_df["additive_concentration"] == best["additive_concentration"]
-                            ].sort_values("temperature")
+                        # Response curves through the optimum
+                        st.subheader("Response curves through optimum")
+                        at_best_conc = sweep_df[
+                            sweep_df["additive_concentration"] == best["additive_concentration"]
+                        ].sort_values("temperature")
+                        st.line_chart(
+                            at_best_conc.set_index("temperature")["predicted_pcmc"]
+                        )
+                        if has_additive:
+                            at_best_temp = sweep_df[
+                                sweep_df["temperature"] == best["temperature"]
+                            ].sort_values("additive_concentration")
                             st.line_chart(
-                                at_best_conc.set_index("temperature")["predicted_pcmc"]
+                                at_best_temp.set_index("additive_concentration")["predicted_pcmc"]
                             )
-                            if has_additive:
-                                at_best_temp = sweep_df[
-                                    sweep_df["temperature"] == best["temperature"]
-                                ].sort_values("additive_concentration")
-                                st.line_chart(
-                                    at_best_temp.set_index("additive_concentration")["predicted_pcmc"]
-                                )
 
-                            add_to_history(
-                                surfactant_input,
-                                float(best["temperature"]),
-                                additive_input,
-                                float(best["additive_concentration"]),
-                                float(best["predicted_pcmc"]),
-                            )
-                            st.toast("Best row saved to History!")
-                        except Exception as e:
-                            show_error("Sweep failed", e)
+                        add_to_history(
+                            surfactant_input.strip(),
+                            float(best["temperature"]),
+                            additive_input,
+                            float(best["additive_concentration"]),
+                            float(best["predicted_pcmc"]),
+                        )
+                        st.toast("Best row saved to History!")
+                    except Exception as e:
+                        show_error("Sweep failed", e)
 
 # --- TAB 2: HISTORY & FEEDBACK ---
 with tab2:
